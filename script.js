@@ -351,16 +351,29 @@ transactionForm.addEventListener("submit", function (e) {
 
     const description = descriptionInput.value.trim();
     const amount = Number(amountInput.value);
+    const type = typeInput.value;
 
     if (!description || amount <= 0 || !dateInput.value) {
         return;
     }
 
+    // --- Insufficient Funds Check Implementation ---
+    if (type === "expense") {
+        const totals = calculateTotals();
+        const currentBalance = totals.income - totals.expense;
+
+        if (amount > currentBalance) {
+            alert(`⚠️ Insufficient Funds!\nYour remaining balance is ${currencyFormatter.format(currentBalance)}. You cannot spend ${currencyFormatter.format(amount)}.`);
+            return; // Stops submission right here
+        }
+    }
+    // ------------------------------------------------
+
     const newTransaction = {
         id: createId(),
         description: description,
         amount: amount,
-        type: typeInput.value,
+        type: type,
         category: categoryInput.value,
         date: dateInput.value
     };
