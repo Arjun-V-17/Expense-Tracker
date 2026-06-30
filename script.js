@@ -1,4 +1,6 @@
-const categories = {
+// --- Updated Category Setup ---
+// Separate categories for clear distinction between inflows and outflows
+const expenseCategories = {
     Shopping: { icon: "🛍️", color: "#bbe1fa" },
     Food: { icon: "🍽️", color: "#3282b8" },
     Bills: { icon: "📄", color: "#0f4c75" },
@@ -8,13 +10,21 @@ const categories = {
     Other: { icon: "💰", color: "#d7eefc" }
 };
 
-const STORAGE_KEY = "expenseTrackerTransactions";
+const incomeCategories = {
+    Salary: { icon: "💼", color: "#2ea44f" },
+    "Prize Money": { icon: "🏆", color: "#ffd700" },
+    Other: { icon: "💰", color: "#d7eefc" }
+};
+
+// Unified helper object to avoid breaking your existing chart/render code
+const categories = { ...expenseCategories, ...incomeCategories };
+// ------------------------------
 
 function createId() {
     return Date.now() + "-" + Math.random().toString(16).slice(2);
 }
 
-const defaultTransactions = [
+let transactions = [
     {
         id: createId(),
         description: "Grocery run",
@@ -66,7 +76,7 @@ const defaultTransactions = [
     {
         id: createId(),
         description: "Monthly salary",
-        category: "Other",
+        category: "Salary", // Updated fallback to match new keys
         type: "income",
         amount: 35000,
         date: "2026-06-01"
@@ -80,29 +90,6 @@ const defaultTransactions = [
         date: "2026-06-03"
     }
 ];
-
-function loadTransactionsFromLocalStorage() {
-    const storedTransactions = localStorage.getItem(STORAGE_KEY);
-
-    if (!storedTransactions) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultTransactions));
-        return defaultTransactions;
-    }
-
-    try {
-        return JSON.parse(storedTransactions);
-    } catch (error) {
-        console.error("Invalid localStorage data:", error);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultTransactions));
-        return defaultTransactions;
-    }
-}
-
-function saveTransactionsToLocalStorage() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
-}
-
-let transactions = loadTransactionsFromLocalStorage();
 
 const currencyFormatter = new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -161,15 +148,27 @@ function formatAmount(txn) {
     return sign + currencyFormatter.format(txn.amount);
 }
 
+// Initialized filters with all options across both collections
 function loadCategories() {
-    categoryFilter.innerHTML = `<option value="all">All Categories</option>`;
-    categoryInput.innerHTML = "";
-
+    categoryFilter.innerHTML = '<option value="all">All Categories</option>';
     for (const category in categories) {
         categoryFilter.add(new Option(category, category));
+    }
+    updateFormCategories(); // Initialize the form options
+}
+
+// --- New Core Function ---
+// Swaps form categories whenever called based on current choice
+function updateFormCategories() {
+    categoryInput.innerHTML = ""; // Wipe options clean
+    
+    const targetGroup = typeInput.value === "income" ? incomeCategories : expenseCategories;
+    
+    for (const category in targetGroup) {
         categoryInput.add(new Option(category, category));
     }
 }
+// -------------------------
 
 function calculateTotals() {
     let income = 0;
@@ -246,7 +245,8 @@ function renderDonutChart() {
         );
     }
 
-    donutChart.style.background = `conic-gradient(${slices.join(", ")})`;
+    donutChart.style.background =
+        `conic-gradient(${slices.join(", ")})`;
 
     let html = "";
 
@@ -318,9 +318,9 @@ function renderTransactions() {
             <article class="transaction-row">
                 <span
                     class="transaction-icon"
-                    style="background:${cat.color}33"
+                    style="background:${cat?.color || "#d7eefc"}33"
                 >
-                    ${cat.icon}
+                    ${cat?.icon || "💰"}
                 </span>
 
                 <div>
@@ -353,6 +353,7 @@ function renderAll() {
 
 transactionModalElement.addEventListener("shown.bs.modal", () => {
     dateInput.valueAsDate = new Date();
+    updateFormCategories(); // Forces clean layout reset when modal loads
     descriptionInput.focus();
 });
 
@@ -360,6 +361,7 @@ openTransactionModal.addEventListener("click", () => {
     if (!window.bootstrap) {
         transactionModal.show();
         dateInput.valueAsDate = new Date();
+        updateFormCategories();
         descriptionInput.focus();
     }
 });
@@ -373,6 +375,11 @@ transactionModalElement.addEventListener("click", (e) => {
     }
 });
 
+// --- Dynamic Input Watcher ---
+// Event listener to change the dropdown dynamically while typing/selecting
+typeInput.addEventListener("change", updateFormCategories);
+// -----------------------------
+
 transactionForm.addEventListener("submit", function (e) {
     e.preventDefault();
 
@@ -384,17 +391,15 @@ transactionForm.addEventListener("submit", function (e) {
         return;
     }
 
-    // --- Insufficient Funds Check Implementation ---
     if (type === "expense") {
         const totals = calculateTotals();
         const currentBalance = totals.income - totals.expense;
 
         if (amount > currentBalance) {
             alert(`⚠️ Insufficient Funds!\nYour remaining balance is ${currencyFormatter.format(currentBalance)}. You cannot spend ${currencyFormatter.format(amount)}.`);
-            return; // Stops submission right here
+            return;
         }
     }
-    // ------------------------------------------------
 
     const newTransaction = {
         id: createId(),
@@ -406,8 +411,6 @@ transactionForm.addEventListener("submit", function (e) {
     };
 
     transactions.unshift(newTransaction);
-
-    saveTransactionsToLocalStorage();
 
     transactionForm.reset();
     transactionModal.hide();
