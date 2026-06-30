@@ -8,11 +8,13 @@ const categories = {
     Other: { icon: "💰", color: "#d7eefc" }
 };
 
+const STORAGE_KEY = "expenseTrackerTransactions";
+
 function createId() {
     return Date.now() + "-" + Math.random().toString(16).slice(2);
 }
 
-let transactions = [
+const defaultTransactions = [
     {
         id: createId(),
         description: "Grocery run",
@@ -79,6 +81,29 @@ let transactions = [
     }
 ];
 
+function loadTransactionsFromLocalStorage() {
+    const storedTransactions = localStorage.getItem(STORAGE_KEY);
+
+    if (!storedTransactions) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultTransactions));
+        return defaultTransactions;
+    }
+
+    try {
+        return JSON.parse(storedTransactions);
+    } catch (error) {
+        console.error("Invalid localStorage data:", error);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultTransactions));
+        return defaultTransactions;
+    }
+}
+
+function saveTransactionsToLocalStorage() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+}
+
+let transactions = loadTransactionsFromLocalStorage();
+
 const currencyFormatter = new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
@@ -137,6 +162,9 @@ function formatAmount(txn) {
 }
 
 function loadCategories() {
+    categoryFilter.innerHTML = `<option value="all">All Categories</option>`;
+    categoryInput.innerHTML = "";
+
     for (const category in categories) {
         categoryFilter.add(new Option(category, category));
         categoryInput.add(new Option(category, category));
@@ -218,8 +246,7 @@ function renderDonutChart() {
         );
     }
 
-    donutChart.style.background =
-        `conic-gradient(${slices.join(", ")})`;
+    donutChart.style.background = `conic-gradient(${slices.join(", ")})`;
 
     let html = "";
 
@@ -366,6 +393,8 @@ transactionForm.addEventListener("submit", function (e) {
     };
 
     transactions.unshift(newTransaction);
+
+    saveTransactionsToLocalStorage();
 
     transactionForm.reset();
     transactionModal.hide();
